@@ -9,7 +9,7 @@
     background: #f5f5f5;
     color: #333;
     padding-top: 70px;
-    padding-bottom: 90px;
+    padding-bottom: 110px;
   }
   
   a {
@@ -272,7 +272,7 @@
     left: 0;
     right: 0;
   
-    height: 78px;
+    height: 90px;
     background: #222;
     color: #fff;
   
@@ -280,7 +280,50 @@
     align-items: center;
     justify-content: space-between;
     gap: 20px;
-    padding: 0 20px;
+    padding: 16px 20px 0;
+    z-index: 999;
+  }
+
+  .player-progress-shell {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 0 16px;
+    transform: translateY(-50%);
+  }
+
+  .player-progress-track {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    cursor: pointer;
+  }
+
+  .player-progress-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ff7875, #ff4d4f);
+  }
+
+  .player-progress-thumb {
+    position: absolute;
+    top: 50%;
+    left: 0%;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #ff4d4f;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
   }
   
   .player-left {
@@ -346,8 +389,8 @@
   }
 
   .control-icon {
-    width: 22px;
-    height: 22px;
+    width: 36px;
+    height: 36px;
     flex-shrink: 0;
   }
   
@@ -364,20 +407,69 @@
     align-items: center;
     gap: 10px;
     min-width: 320px;
+    justify-content: flex-end;
   }
-  
-  .progress-bar {
-    width: 180px;
-    height: 6px;
+
+  .volume-control {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .volume-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: #3a3a3a;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .volume-btn:hover {
     background: #555;
-    border-radius: 999px;
-    overflow: hidden;
   }
-  
-  .progress-inner {
-    width: 0%;
-    height: 100%;
-    background: #ff4d4f;
+
+  .volume-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .volume-bar {
+    position: relative;
+    width: 8px;
+    height: 58px;
+    border-radius: 999px;
+    background: #555;
+    cursor: pointer;
+  }
+
+  .volume-inner {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 70%;
+    border-radius: inherit;
+    background: linear-gradient(180deg, #ff9c7b, #ff4d4f);
+  }
+
+  .volume-thumb {
+    position: absolute;
+    left: 50%;
+    bottom: 70%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #ff4d4f;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+    transform: translate(-50%, 50%);
+    pointer-events: none;
   }
   
   @media (max-width: 768px) {
@@ -393,13 +485,28 @@
   
     .player-bar {
       height: auto;
-      padding: 14px;
+      padding: 20px 14px 14px;
       flex-direction: column;
       align-items: flex-start;
+    }
+
+    .player-progress-shell {
+      padding: 0 12px;
+    }
+
+    .player-left,
+    .player-center,
+    .player-right {
+      width: 100%;
+    }
+
+    .player-center {
+      justify-content: center;
     }
   
     .player-right {
       min-width: auto;
+      justify-content: space-between;
     }
   
     .song-table {
@@ -408,5 +515,9 @@
   
     .search-box input {
       width: 140px;
+    }
+
+    .volume-bar {
+      height: 50px;
     }
   }

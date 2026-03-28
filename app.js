@@ -46,6 +46,10 @@ const songs = [
   let isPlaying = false;
   let progressTimer = null;
   let fakeCurrentTime = 0;
+  let currentVolume = 0.7;
+  let previousVolume = currentVolume;
+  let isDraggingProgress = false;
+  let isDraggingVolume = false;
   
   // =========================
   // 3. 获取页面元素
@@ -56,11 +60,18 @@ const songs = [
   const playerArtistEl = document.getElementById("playerArtist");
   const totalTimeEl = document.getElementById("totalTime");
   const currentTimeEl = document.getElementById("currentTime");
+  const progressBarEl = document.getElementById("progressBar");
   const progressInnerEl = document.getElementById("progressInner");
+  const progressThumbEl = document.getElementById("progressThumb");
   const playPauseBtn = document.getElementById("playPauseBtn");
   const playAllBtn = document.getElementById("playAllBtn");
   const prevBtn = document.getElementById("prevBtn");
   const nextBtn = document.getElementById("nextBtn");
+  const titleEl = document.getElementById("title");
+  const volumeBtn = document.getElementById("volumeBtn");
+  const volumeBarEl = document.getElementById("volumeBar");
+  const volumeInnerEl = document.getElementById("volumeInner");
+  const volumeThumbEl = document.getElementById("volumeThumb");
 
   function getPlayIconSvg() {
     return `
@@ -78,11 +89,48 @@ const songs = [
     `;
   }
 
+  function getVolumeIconSvg(volume) {
+    if (volume <= 0) {
+      return `
+        <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 10h4l5-4v12l-5-4H5z" fill="currentColor"></path>
+          <path d="M17 8 21 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          <path d="M21 8 17 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+        </svg>
+      `;
+    }
+
+    if (volume < 0.5) {
+      return `
+        <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 10h4l5-4v12l-5-4H5z" fill="currentColor"></path>
+          <path d="M17 9.5a3 3 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+        </svg>
+      `;
+    }
+
+    return `
+      <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 10h4l5-4v12l-5-4H5z" fill="currentColor"></path>
+        <path d="M17 9a4 4 0 0 1 0 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+        <path d="M19.5 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+      </svg>
+    `;
+  }
+
   function updatePlayPauseButton() {
     playPauseBtn.innerHTML = isPlaying ? getPauseIconSvg() : getPlayIconSvg();
     const label = isPlaying ? "暂停" : "播放";
     playPauseBtn.setAttribute("aria-label", label);
     playPauseBtn.setAttribute("title", label);
+  }
+
+  function updateVolumeButton() {
+    volumeBtn.innerHTML = getVolumeIconSvg(currentVolume);
+    const volumePercent = Math.round(currentVolume * 100);
+    const label = currentVolume === 0 ? "当前已静音" : `当前音量 ${volumePercent}%`;
+    volumeBtn.setAttribute("aria-label", label);
+    volumeBtn.setAttribute("title", label);
   }
   
   // =========================
@@ -92,6 +140,24 @@ const songs = [
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+
+  function updateProgressUI() {
+    const song = songs[currentSongIndex];
+    const duration = song ? song.duration : 0;
+    const percent = duration > 0 ? (fakeCurrentTime / duration) * 100 : 0;
+    const clampedPercent = Math.max(0, Math.min(100, percent));
+
+    progressInnerEl.style.width = `${clampedPercent}%`;
+    progressThumbEl.style.left = `${clampedPercent}%`;
+    currentTimeEl.textContent = formatTime(fakeCurrentTime);
+  }
+
+  function updateVolumeUI() {
+    const volumePercent = Math.max(0, Math.min(100, currentVolume * 100));
+    volumeInnerEl.style.height = `${volumePercent}%`;
+    volumeThumbEl.style.bottom = `${volumePercent}%`;
+    updateVolumeButton();
   }
   
   // =========================
@@ -123,7 +189,7 @@ const songs = [
   // =========================
   function bindPlayButtons() {
     const playButtons = document.querySelectorAll(".play-btn");
-  
+
     playButtons.forEach((btn) => {
       btn.addEventListener("click", () => {
         const index = Number(btn.dataset.index);
@@ -131,7 +197,10 @@ const songs = [
       });
     });
   }
-  
+  function updatetitle(index) {
+    titleEl.textContent = `${songs[index].title} - ${songs[index].artist} | 吴易云音乐`;
+  }
+
   // =========================
   // 7. 播放指定歌曲
   // =========================
@@ -145,12 +214,12 @@ const songs = [
     playerTitleEl.textContent = song.title;
     playerArtistEl.textContent = song.artist;
     totalTimeEl.textContent = formatTime(song.duration);
-    currentTimeEl.textContent = "00:00";
-    progressInnerEl.style.width = "0%";
+    updateProgressUI();
     updatePlayPauseButton();
   
     highlightCurrentRow();
     startFakeProgress();
+    updatetitle(index);
   }
   
   // =========================
@@ -206,10 +275,7 @@ const songs = [
         return;
       }
   
-      currentTimeEl.textContent = formatTime(fakeCurrentTime);
-  
-      const percent = (fakeCurrentTime / song.duration) * 100;
-      progressInnerEl.style.width = `${percent}%`;
+      updateProgressUI();
     }, 1000);
   }
   
@@ -251,6 +317,51 @@ const songs = [
       playSong(0);
     }
   }
+
+  function setProgressFromRatio(ratio) {
+    if (currentSongIndex === -1) return;
+
+    const song = songs[currentSongIndex];
+    const clampedRatio = Math.max(0, Math.min(1, ratio));
+    fakeCurrentTime = Math.round(song.duration * clampedRatio);
+
+    if (fakeCurrentTime >= song.duration) {
+      fakeCurrentTime = song.duration - 1;
+    }
+
+    fakeCurrentTime = Math.max(0, fakeCurrentTime);
+    updateProgressUI();
+  }
+
+  function setProgressFromClientX(clientX) {
+    const rect = progressBarEl.getBoundingClientRect();
+    const ratio = (clientX - rect.left) / rect.width;
+    setProgressFromRatio(ratio);
+  }
+
+  function setVolume(ratio) {
+    currentVolume = Math.max(0, Math.min(1, ratio));
+    if (currentVolume > 0) {
+      previousVolume = currentVolume;
+    }
+    updateVolumeUI();
+  }
+
+  function setVolumeFromClientY(clientY) {
+    const rect = volumeBarEl.getBoundingClientRect();
+    const ratio = (rect.bottom - clientY) / rect.height;
+    setVolume(ratio);
+  }
+
+  function toggleMute() {
+    if (currentVolume === 0) {
+      setVolume(previousVolume || 0.7);
+      return;
+    }
+
+    previousVolume = currentVolume;
+    setVolume(0);
+  }
   
   // =========================
   // 13. 绑定底部控制按钮
@@ -259,9 +370,36 @@ const songs = [
   playAllBtn.addEventListener("click", playAllSongs);
   prevBtn.addEventListener("click", playPrevSong);
   nextBtn.addEventListener("click", playNextSong);
+  volumeBtn.addEventListener("click", toggleMute);
+
+  progressBarEl.addEventListener("pointerdown", (event) => {
+    isDraggingProgress = true;
+    setProgressFromClientX(event.clientX);
+  });
+
+  volumeBarEl.addEventListener("pointerdown", (event) => {
+    isDraggingVolume = true;
+    setVolumeFromClientY(event.clientY);
+  });
+
+  window.addEventListener("pointermove", (event) => {
+    if (isDraggingProgress) {
+      setProgressFromClientX(event.clientX);
+    }
+
+    if (isDraggingVolume) {
+      setVolumeFromClientY(event.clientY);
+    }
+  });
+
+  window.addEventListener("pointerup", () => {
+    isDraggingProgress = false;
+    isDraggingVolume = false;
+  });
   
   // =========================
   // 14. 页面初始化
   // =========================
   updatePlayPauseButton();
+  updateVolumeUI();
   renderSongs();

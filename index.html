@@ -4,10 +4,12 @@
   <link rel="icon" type="image/png" href="圆logo.png">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>吴易云音乐</title>
+  <title id="title"></title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <audio id="audioPlayer" preload="metadata"></audio>
+
   <!-- 顶部导航 -->
   <header class="topbar">
     <div class="logo">
@@ -77,12 +79,24 @@
 
   <!-- 底部播放器 -->
   <footer class="player-bar">
+    <div class="player-progress-shell">
+      <div class="player-progress-track" id="progressBar" aria-label="播放进度条">
+        <div class="player-progress-fill" id="progressInner"></div>
+        <div class="player-progress-thumb" id="progressThumb"></div>
+      </div>
+    </div>
+
     <div class="player-left">
       <div class="player-cover" id="playerCover">♪</div>
       <div class="player-meta">
         <div class="player-title" id="playerTitle">还没有播放歌曲</div>
         <div class="player-artist" id="playerArtist">请选择一首歌</div>
       </div>
+    </div>
+
+    <div class="player-lyric-wrap">
+      <div class="player-lyric-label">歌词</div>
+      <div class="player-lyric" id="playerLyric">播放后这里会显示当前歌词</div>
     </div>
 
     <div class="player-center">
@@ -107,8 +121,18 @@
 
     <div class="player-right">
       <span id="currentTime">00:00</span>
-      <div class="progress-bar">
-        <div class="progress-inner" id="progressInner"></div>
+      <div class="volume-control">
+        <button id="volumeBtn" class="volume-btn" aria-label="切换静音" title="切换静音">
+          <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 10h4l5-4v12l-5-4H5z" fill="currentColor"/>
+            <path d="M17 9a4 4 0 0 1 0 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M19.5 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="volume-bar" id="volumeBar" aria-label="音量控制条">
+          <div class="volume-inner" id="volumeInner"></div>
+          <div class="volume-thumb" id="volumeThumb"></div>
+        </div>
       </div>
       <span id="totalTime">00:00</span>
     </div>
