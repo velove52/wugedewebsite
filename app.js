@@ -2,6 +2,7 @@
 // 1. 全局状态
 // =========================
 const songs = [];
+const visibleSongIndexes = [];
 let currentSongIndex = -1;
 let currentVolume = 0.7;
 let previousVolume = currentVolume;
@@ -15,15 +16,26 @@ let isPointerOverPlayerBar = false;
 let currentMessageAuthor = localStorage.getItem("messageWallAuthor") || "匿名用户";
 let pendingMessageImage = null;
 let isMessageSubmitting = false;
+let currentSearchKeyword = "";
+let mobilePanelIndex = 0;
+let mobileGestureStartX = 0;
+let mobileGestureStartY = 0;
+let isMobileGestureActive = false;
+let hasMobileGestureMoved = false;
 
 const stickyPaletteClasses = ["note-1", "note-2", "note-3", "note-4"];
 const messageWallData = [];
 const API_BASE_URL = window.location.protocol === "file:" ? "http://127.0.0.1:3000" : "";
+const MOBILE_BREAKPOINT = 768;
+const MOBILE_SWIPE_HINT_KEY = "musicSiteMobileSwipeHintSeen";
 
 // =========================
 // 2. 获取页面元素
 // =========================
 const audioEl = document.getElementById("audioPlayer");
+const contentLayoutEl = document.querySelector(".content-layout");
+const mobileSwipeHintEl = document.getElementById("mobileSwipeHint");
+const mobilePanelSwitcherEl = document.getElementById("mobilePanelSwitcher");
 const songListEl = document.getElementById("songList");
 const songCountEl = document.getElementById("songCount");
 const playerTitleEl = document.getElementById("playerTitle");
@@ -41,6 +53,8 @@ const playPauseBtn = document.getElementById("playPauseBtn");
 const playAllBtn = document.getElementById("playAllBtn");
 const prevBtn = document.getElementById("prevBtn");
 const nextBtn = document.getElementById("nextBtn");
+const searchInputEl = document.getElementById("searchInput");
+const searchBtnEl = document.getElementById("searchBtn");
 const titleEl = document.getElementById("title");
 const volumeControlEl = document.querySelector(".volume-control");
 const volumeBtn = document.getElementById("volumeBtn");
@@ -189,6 +203,103 @@ async function parseApiResponse(response) {
 
 function getDisplayName(name) {
   return name && name.trim() ? name.trim() : "匿名";
+}
+
+function normalizeKeyword(keyword) {
+  return keyword.trim().toLowerCase();
+}
+
+function songMatchesKeyword(song, keyword) {
+  if (!keyword) {
+    return true;
+  }
+
+  return [song.title, song.artist, song.album]
+    .filter(Boolean)
+    .some((value) => value.toLowerCase().includes(keyword));
+}
+
+function refreshVisibleSongIndexes() {
+  const keyword = normalizeKeyword(currentSearchKeyword);
+  const nextVisibleIndexes = songs.reduce((indexes, song, index) => {
+    if (songMatchesKeyword(song, keyword)) {
+      indexes.push(index);
+    }
+
+    return indexes;
+  }, []);
+
+  visibleSongIndexes.splice(0, visibleSongIndexes.length, ...nextVisibleIndexes);
+}
+
+function getVisibleSongCountText() {
+  if (!currentSearchKeyword.trim()) {
+    return `${songs.length} 首歌曲`;
+  }
+
+  return `搜索结果：${visibleSongIndexes.length} / ${songs.length} 首`;
+}
+
+function isMobileViewport() {
+  return window.innerWidth <= MOBILE_BREAKPOINT;
+}
+
+function updateMobilePanelUI() {
+  if (!contentLayoutEl) {
+    return;
+  }
+
+  contentLayoutEl.style.setProperty("--mobile-panel-index", String(mobilePanelIndex));
+
+  const switchButtons = mobilePanelSwitcherEl?.querySelectorAll("[data-mobile-panel-target]") || [];
+  switchButtons.forEach((button) => {
+    const targetIndex = Number(button.getAttribute("data-mobile-panel-target"));
+    button.classList.toggle("is-active", targetIndex === mobilePanelIndex);
+  });
+}
+
+function setMobilePanel(index) {
+  const nextIndex = index === 1 ? 1 : 0;
+  mobilePanelIndex = nextIndex;
+  updateMobilePanelUI();
+  hideMobileSwipeHint(true);
+}
+
+function hideMobileSwipeHint(markAsSeen = false) {
+  if (!mobileSwipeHintEl) {
+    return;
+  }
+
+  mobileSwipeHintEl.classList.remove("is-visible");
+
+  if (markAsSeen) {
+    localStorage.setItem(MOBILE_SWIPE_HINT_KEY, "1");
+  }
+}
+
+function showMobileSwipeHintIfNeeded() {
+  if (!mobileSwipeHintEl) {
+    return;
+  }
+
+  if (!isMobileViewport()) {
+    hideMobileSwipeHint(false);
+    return;
+  }
+
+  if (localStorage.getItem(MOBILE_SWIPE_HINT_KEY) === "1") {
+    hideMobileSwipeHint(false);
+    return;
+  }
+
+  mobileSwipeHintEl.hidden = false;
+  requestAnimationFrame(() => {
+    mobileSwipeHintEl.classList.add("is-visible");
+  });
+
+  window.setTimeout(() => {
+    hideMobileSwipeHint(true);
+  }, 4200);
 }
 
 function getSubmitAuthorName() {
@@ -511,20 +622,31 @@ async function safePlay() {
 // 4. 渲染歌曲列表
 // =========================
 function renderSongs() {
-  songCountEl.textContent = `${songs.length} 首歌曲`;
+  refreshVisibleSongIndexes();
+  songCountEl.textContent = getVisibleSongCountText();
 
-  songListEl.innerHTML = songs
-    .map((song, index) => {
-      const isCurrentSong = index === currentSongIndex;
+  if (visibleSongIndexes.length === 0) {
+    songListEl.innerHTML = `
+      <tr class="song-empty-row">
+        <td colspan="6">没有找到匹配“${escapeHtml(currentSearchKeyword.trim())}”的歌曲</td>
+      </tr>
+    `;
+    return;
+  }
+
+  songListEl.innerHTML = visibleSongIndexes
+    .map((songIndex, visibleIndex) => {
+      const song = songs[songIndex];
+      const isCurrentSong = songIndex === currentSongIndex;
       const isCurrentSongPlaying = isCurrentSong && !audioEl.paused && !audioEl.ended;
       const actionLabel = isCurrentSongPlaying ? `暂停 ${song.title}` : `播放 ${song.title}`;
       const iconSvg = isCurrentSongPlaying ? getSongListPauseIconSvg() : getSongListPlayIconSvg();
 
       return `
-        <tr data-index="${index}">
-          <td>${index + 1}</td>
+        <tr data-song-index="${songIndex}">
+          <td>${visibleIndex + 1}</td>
           <td class="song-action-cell">
-            <button class="play-btn" data-index="${index}" aria-label="${actionLabel}" title="${actionLabel}">
+            <button class="play-btn" data-song-index="${songIndex}" aria-label="${actionLabel}" title="${actionLabel}">
               ${iconSvg}
             </button>
           </td>
@@ -546,13 +668,13 @@ function updateSongListButtonsState() {
   const isPlaying = !audioEl.paused && !audioEl.ended;
 
   playButtons.forEach((btn) => {
-    const index = Number(btn.dataset.index);
-    const song = songs[index];
+    const songIndex = Number(btn.dataset.songIndex);
+    const song = songs[songIndex];
     if (!song) {
       return;
     }
 
-    const isCurrentSong = index === currentSongIndex;
+    const isCurrentSong = songIndex === currentSongIndex;
     const shouldShowPause = isCurrentSong && isPlaying;
     const label = shouldShowPause ? `暂停 ${song.title}` : `播放 ${song.title}`;
 
@@ -570,14 +692,14 @@ function bindPlayButtons() {
 
   playButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
-      const index = Number(btn.dataset.index);
+      const songIndex = Number(btn.dataset.songIndex);
 
-      if (index === currentSongIndex) {
+      if (songIndex === currentSongIndex) {
         togglePlayPause();
         return;
       }
 
-      playSong(index);
+      playSong(songIndex);
     });
   });
 }
@@ -618,10 +740,10 @@ function playSong(index) {
 // 7. 当前歌曲高亮
 // =========================
 function highlightCurrentRow() {
-  const rows = document.querySelectorAll("#songList tr");
+  const rows = document.querySelectorAll("#songList tr[data-song-index]");
 
-  rows.forEach((row, index) => {
-    row.classList.toggle("playing", index === currentSongIndex);
+  rows.forEach((row) => {
+    row.classList.toggle("playing", Number(row.dataset.songIndex) === currentSongIndex);
   });
 }
 
@@ -630,7 +752,9 @@ function highlightCurrentRow() {
 // =========================
 function togglePlayPause() {
   if (currentSongIndex === -1) {
-    playSong(0);
+    if (visibleSongIndexes.length > 0) {
+      playSong(visibleSongIndexes[0]);
+    }
     return;
   }
 
@@ -642,29 +766,38 @@ function togglePlayPause() {
 }
 
 function playPrevSong() {
-  if (songs.length === 0) return;
+  if (visibleSongIndexes.length === 0) return;
 
-  if (currentSongIndex <= 0) {
-    playSong(songs.length - 1);
-  } else {
-    playSong(currentSongIndex - 1);
-  }
+  const currentVisibleIndex = visibleSongIndexes.indexOf(currentSongIndex);
+  const targetSongIndex =
+    currentVisibleIndex === -1
+      ? visibleSongIndexes[visibleSongIndexes.length - 1]
+      : visibleSongIndexes[currentVisibleIndex <= 0 ? visibleSongIndexes.length - 1 : currentVisibleIndex - 1];
+
+  playSong(targetSongIndex);
 }
 
 function playNextSong() {
-  if (songs.length === 0) return;
+  if (visibleSongIndexes.length === 0) return;
 
-  if (currentSongIndex >= songs.length - 1) {
-    playSong(0);
-  } else {
-    playSong(currentSongIndex + 1);
-  }
+  const currentVisibleIndex = visibleSongIndexes.indexOf(currentSongIndex);
+  const targetSongIndex =
+    currentVisibleIndex === -1 || currentVisibleIndex >= visibleSongIndexes.length - 1
+      ? visibleSongIndexes[0]
+      : visibleSongIndexes[currentVisibleIndex + 1];
+
+  playSong(targetSongIndex);
 }
 
 function playAllSongs() {
-  if (songs.length > 0) {
-    playSong(0);
+  if (visibleSongIndexes.length > 0) {
+    playSong(visibleSongIndexes[0]);
   }
+}
+
+function applySongSearch(keyword) {
+  currentSearchKeyword = keyword;
+  renderSongs();
 }
 
 // =========================
@@ -738,6 +871,66 @@ function toggleMute() {
   setVolume(0);
 }
 
+function handleMobileGestureStart(event) {
+  if (!isMobileViewport()) {
+    return;
+  }
+
+  const touch = event.touches[0];
+  if (!touch) {
+    return;
+  }
+
+  isMobileGestureActive = true;
+  hasMobileGestureMoved = false;
+  mobileGestureStartX = touch.clientX;
+  mobileGestureStartY = touch.clientY;
+}
+
+function handleMobileGestureMove(event) {
+  if (!isMobileGestureActive || !isMobileViewport()) {
+    return;
+  }
+
+  const touch = event.touches[0];
+  if (!touch) {
+    return;
+  }
+
+  const deltaX = touch.clientX - mobileGestureStartX;
+  const deltaY = touch.clientY - mobileGestureStartY;
+
+  if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 16) {
+    hasMobileGestureMoved = true;
+  }
+}
+
+function handleMobileGestureEnd(event) {
+  if (!isMobileGestureActive || !isMobileViewport()) {
+    isMobileGestureActive = false;
+    hasMobileGestureMoved = false;
+    return;
+  }
+
+  const touch = event.changedTouches[0];
+  if (!touch) {
+    isMobileGestureActive = false;
+    hasMobileGestureMoved = false;
+    return;
+  }
+
+  const deltaX = touch.clientX - mobileGestureStartX;
+  const deltaY = touch.clientY - mobileGestureStartY;
+  const isHorizontalSwipe = Math.abs(deltaX) > 58 && Math.abs(deltaX) > Math.abs(deltaY) * 1.15;
+
+  if (isHorizontalSwipe && hasMobileGestureMoved) {
+    setMobilePanel(deltaX < 0 ? 1 : 0);
+  }
+
+  isMobileGestureActive = false;
+  hasMobileGestureMoved = false;
+}
+
 // =========================
 // 10. 事件绑定
 // =========================
@@ -745,6 +938,45 @@ playPauseBtn.addEventListener("click", togglePlayPause);
 playAllBtn.addEventListener("click", playAllSongs);
 prevBtn.addEventListener("click", playPrevSong);
 nextBtn.addEventListener("click", playNextSong);
+searchBtnEl.addEventListener("click", () => {
+  applySongSearch(searchInputEl.value);
+});
+searchInputEl.addEventListener("input", () => {
+  applySongSearch(searchInputEl.value);
+});
+searchInputEl.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    applySongSearch(searchInputEl.value);
+  }
+
+  if (event.key === "Escape" && searchInputEl.value) {
+    searchInputEl.value = "";
+    applySongSearch("");
+  }
+});
+
+mobilePanelSwitcherEl?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const nextIndex = Number(target.dataset.mobilePanelTarget);
+  if (!Number.isFinite(nextIndex)) {
+    return;
+  }
+
+  setMobilePanel(nextIndex);
+});
+
+contentLayoutEl?.addEventListener("touchstart", handleMobileGestureStart, { passive: true });
+contentLayoutEl?.addEventListener("touchmove", handleMobileGestureMove, { passive: true });
+contentLayoutEl?.addEventListener("touchend", handleMobileGestureEnd, { passive: true });
+contentLayoutEl?.addEventListener("touchcancel", () => {
+  isMobileGestureActive = false;
+  hasMobileGestureMoved = false;
+});
 volumeBtn.addEventListener("click", toggleMute);
 volumeBtn.addEventListener("blur", syncVolumePopoverState);
 volumeControlEl.addEventListener("pointerenter", keepVolumePopoverOpen);
@@ -806,7 +1038,16 @@ window.addEventListener("keydown", (event) => {
   togglePlayPause();
 });
 
-window.addEventListener("resize", updatePlayerTitleMarquee);
+window.addEventListener("resize", () => {
+  if (!isMobileViewport()) {
+    setMobilePanel(0);
+  } else {
+    updateMobilePanelUI();
+  }
+
+  showMobileSwipeHintIfNeeded();
+  updatePlayerTitleMarquee();
+});
 
 messageFormEl.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1003,6 +1244,8 @@ updateVolumeUI();
 updateMessageAuthorUI();
 renderMessageImagePreview();
 setPlayerTitle("还没有播放歌曲");
+updateMobilePanelUI();
+showMobileSwipeHintIfNeeded();
 fetchMessagesFromServer().catch((error) => {
   renderMessages();
   window.alert(error.message || "留言墙加载失败，请确认后端服务已启动。");
