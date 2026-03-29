@@ -12,13 +12,19 @@ function mapSong(row) {
   };
 }
 
-export async function listSongs() {
+export async function listSongs(keyword = "") {
+  const trimmedKeyword = keyword.trim();
+  const hasKeyword = Boolean(trimmedKeyword);
+  const searchPattern = `%${trimmedKeyword}%`;
+
   const [rows] = await dbPool.query(
     `
       SELECT id, title, artist, album, audio_url, cover_url, duration_seconds
       FROM songs
+      ${hasKeyword ? "WHERE title LIKE ? OR artist LIKE ? OR album LIKE ?" : ""}
       ORDER BY sort_order ASC, id ASC
-    `
+    `,
+    hasKeyword ? [searchPattern, searchPattern, searchPattern] : []
   );
 
   return rows.map(mapSong);
