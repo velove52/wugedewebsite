@@ -223,9 +223,16 @@
     color: #fff;
   }
   
-  .btn.primary:hover {
-    background: #e63b3d;
-  }
+.btn.primary:hover {
+  background: #e63b3d;
+}
+
+.btn:disabled,
+.reply-submit-btn:disabled,
+.reply-cancel-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
 
   .btn-with-icon {
     display: inline-flex;
@@ -382,12 +389,16 @@
     color: #b42318;
   }
 
-  .message-image-preview {
-    margin-top: 12px;
-    display: inline-flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+.message-image-preview {
+  margin-top: 12px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reply-image-preview {
+  margin-top: 4px;
+}
 
   .message-image-preview img {
     width: 100%;

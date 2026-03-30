@@ -15,7 +15,10 @@ let isPointerNearBottom = false;
 let isPointerOverPlayerBar = false;
 let currentMessageAuthor = localStorage.getItem("messageWallAuthor") || "匿名用户";
 let pendingMessageImage = null;
+const pendingReplyImages = new Map();
+const replyDraftTexts = new Map();
 let isMessageSubmitting = false;
+const submittingReplyIds = new Set();
 let currentSearchKeyword = "";
 let mobilePanelIndex = 0;
 let mobileGestureStartX = 0;
@@ -28,6 +31,7 @@ const messageWallData = [];
 const API_BASE_URL = window.location.protocol === "file:" ? "http://127.0.0.1:3000" : "";
 const MOBILE_BREAKPOINT = 768;
 const MOBILE_SWIPE_HINT_KEY = "musicSiteMobileSwipeHintSeen";
+const MAX_UPLOAD_SIZE_BYTES = 3 * 1024 * 1024;
 
 // =========================
 // 2. 获取页面元素
@@ -69,6 +73,7 @@ const messageImageInputEl = document.getElementById("messageImageInput");
 const messageImageTipEl = document.getElementById("messageImageTip");
 const messageImagePreviewEl = document.getElementById("messageImagePreview");
 const messageListEl = document.getElementById("messageList");
+const messageSubmitBtn = messageFormEl?.querySelector('button[type="submit"]');
 
 function getPlayIconSvg() {
   return `
@@ -325,6 +330,30 @@ function setUploadTip(message, isError = false) {
   messageImageTipEl.classList.toggle("is-error", isError);
 }
 
+function getImageValidationError(file, prefix = "图片") {
+  if (!file) {
+    return null;
+  }
+
+  if (!file.type || !file.type.startsWith("image/")) {
+    return `${prefix}格式不支持，请选择图片文件。`;
+  }
+
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    return `${prefix}不能超过 3MB，请重新选择。`;
+  }
+
+  return null;
+}
+
+function createPendingImageState(file) {
+  return {
+    fileName: file.name,
+    file,
+    previewUrl: URL.createObjectURL(file)
+  };
+}
+
 function renderMessageImagePreview() {
   if (!pendingMessageImage) {
     messageImagePreviewEl.hidden = true;
@@ -339,6 +368,42 @@ function renderMessageImagePreview() {
     <button type="button" class="message-image-remove" id="messageImageRemove">移除图片</button>
   `;
   setUploadTip(`已选择：${pendingMessageImage.fileName}`);
+}
+
+function getReplyUploadTipState(messageId) {
+  const pendingImage = pendingReplyImages.get(messageId);
+  if (!pendingImage) {
+    return {
+      message: "支持图片，大小不能超过 3MB",
+      isError: false
+    };
+  }
+
+  if (pendingImage.error) {
+    return {
+      message: pendingImage.error,
+      isError: true
+    };
+  }
+
+  return {
+    message: `已选择：${pendingImage.fileName}`,
+    isError: false
+  };
+}
+
+function buildReplyImagePreviewHtml(messageId) {
+  const pendingImage = pendingReplyImages.get(messageId);
+  if (!pendingImage || pendingImage.error || !pendingImage.previewUrl) {
+    return "";
+  }
+
+  return `
+    <div class="message-image-preview reply-image-preview">
+      <img src="${pendingImage.previewUrl}" alt="${escapeHtml(pendingImage.fileName)}">
+      <button type="button" class="message-image-remove" data-reply-image-remove="${messageId}">移除图片</button>
+    </div>
+  `;
 }
 
 function resetPendingMessageImage() {
@@ -357,23 +422,63 @@ async function handleImageSelection(file) {
     return;
   }
 
-  const maxSize = 3 * 1024 * 1024;
-  if (file.size > maxSize) {
+  const validationError = getImageValidationError(file);
+  if (validationError) {
     resetPendingMessageImage();
-    setUploadTip("图片不能超过 3MB，请重新选择。", true);
+    setUploadTip(validationError, true);
     return;
   }
 
   try {
-    pendingMessageImage = {
-      fileName: file.name,
-      file,
-      previewUrl: URL.createObjectURL(file)
-    };
+    pendingMessageImage = createPendingImageState(file);
     renderMessageImagePreview();
   } catch (error) {
     resetPendingMessageImage();
     setUploadTip("图片读取失败，请重试。", true);
+  }
+}
+
+function resetPendingReplyImage(messageId) {
+  const pendingImage = pendingReplyImages.get(messageId);
+  if (pendingImage?.previewUrl) {
+    URL.revokeObjectURL(pendingImage.previewUrl);
+  }
+
+  pendingReplyImages.delete(messageId);
+}
+
+function resetReplyDraft(messageId) {
+  replyDraftTexts.delete(messageId);
+  resetPendingReplyImage(messageId);
+}
+
+async function handleReplyImageSelection(messageId, file) {
+  resetPendingReplyImage(messageId);
+
+  if (!file) {
+    renderMessages();
+    return;
+  }
+
+  const validationError = getImageValidationError(file, "回复图片");
+  if (validationError) {
+    pendingReplyImages.set(messageId, {
+      fileName: file.name,
+      error: validationError
+    });
+    renderMessages();
+    return;
+  }
+
+  try {
+    pendingReplyImages.set(messageId, createPendingImageState(file));
+    renderMessages();
+  } catch (error) {
+    pendingReplyImages.set(messageId, {
+      fileName: file.name,
+      error: "回复图片读取失败，请重试。"
+    });
+    renderMessages();
   }
 }
 
@@ -412,6 +517,9 @@ function renderReplyForm(messageId) {
     return "";
   }
 
+  const tipState = getReplyUploadTipState(messageId);
+  const isReplySubmitting = submittingReplyIds.has(messageId);
+
   return `
     <form class="reply-form" data-reply-form="${messageId}">
       <textarea
@@ -420,7 +528,7 @@ function renderReplyForm(messageId) {
         rows="3"
         maxlength="500"
         placeholder="写下你的回复..."
-      ></textarea>
+      >${escapeHtml(replyDraftTexts.get(messageId) || "")}</textarea>
       <div class="reply-upload-row">
         <label class="message-upload-btn" for="replyImageInput-${messageId}">上传图片</label>
         <input
@@ -430,11 +538,12 @@ function renderReplyForm(messageId) {
           name="replyImage"
           accept="image/*"
         >
-        <span class="message-upload-tip">支持图片，大小不能超过 3MB</span>
+        <span class="message-upload-tip${tipState.isError ? " is-error" : ""}">${escapeHtml(tipState.message)}</span>
       </div>
+      ${buildReplyImagePreviewHtml(messageId)}
       <div class="reply-form-actions">
         <button type="button" class="reply-cancel-btn" data-reply-cancel="${messageId}">取消</button>
-        <button type="submit" class="reply-submit-btn">发布回复</button>
+        <button type="submit" class="reply-submit-btn" ${isReplySubmitting ? "disabled" : ""}>${isReplySubmitting ? "发布中..." : "发布回复"}</button>
       </div>
     </form>
   `;
@@ -1063,6 +1172,10 @@ messageFormEl.addEventListener("submit", async (event) => {
   }
 
   isMessageSubmitting = true;
+  if (messageSubmitBtn) {
+    messageSubmitBtn.disabled = true;
+    messageSubmitBtn.textContent = "发布中...";
+  }
 
   try {
     let uploadedImage = null;
@@ -1093,6 +1206,10 @@ messageFormEl.addEventListener("submit", async (event) => {
     window.alert(error.message || "留言发布失败，请稍后重试。");
   } finally {
     isMessageSubmitting = false;
+    if (messageSubmitBtn) {
+      messageSubmitBtn.disabled = false;
+      messageSubmitBtn.textContent = "贴上墙";
+    }
   }
 });
 
@@ -1136,16 +1253,68 @@ messageListEl.addEventListener("click", (event) => {
   const replyToggleId = target.dataset.replyToggle;
   if (replyToggleId) {
     const messageId = Number(replyToggleId);
+    if (activeReplyMessageId !== null && activeReplyMessageId !== messageId) {
+      resetReplyDraft(activeReplyMessageId);
+    }
     activeReplyMessageId = activeReplyMessageId === messageId ? null : messageId;
+    if (activeReplyMessageId === null) {
+      resetReplyDraft(messageId);
+    }
     renderMessages();
     return;
   }
 
   const replyCancelId = target.dataset.replyCancel;
   if (replyCancelId) {
+    resetReplyDraft(Number(replyCancelId));
     activeReplyMessageId = null;
     renderMessages();
+    return;
   }
+
+  const replyImageRemoveId = target.dataset.replyImageRemove;
+  if (replyImageRemoveId) {
+    resetPendingReplyImage(Number(replyImageRemoveId));
+    renderMessages();
+  }
+});
+
+messageListEl.addEventListener("change", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || target.name !== "replyImage") {
+    return;
+  }
+
+  const form = target.closest("form[data-reply-form]");
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+
+  const messageId = Number(form.dataset.replyForm);
+  if (!Number.isFinite(messageId)) {
+    return;
+  }
+
+  await handleReplyImageSelection(messageId, target.files?.[0] || null);
+});
+
+messageListEl.addEventListener("input", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLTextAreaElement) || target.name !== "replyText") {
+    return;
+  }
+
+  const form = target.closest("form[data-reply-form]");
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+
+  const messageId = Number(form.dataset.replyForm);
+  if (!Number.isFinite(messageId)) {
+    return;
+  }
+
+  replyDraftTexts.set(messageId, target.value);
 });
 
 messageListEl.addEventListener("submit", async (event) => {
@@ -1166,24 +1335,37 @@ messageListEl.addEventListener("submit", async (event) => {
   }
 
   const replyText = replyInput.value.trim();
-  const replyImageInput = form.elements.namedItem("replyImage");
-  const imageFile = replyImageInput instanceof HTMLInputElement ? replyImageInput.files?.[0] || null : null;
+  const messageId = Number(messageIdRaw);
+  const pendingReplyImage = pendingReplyImages.get(messageId);
+  const imageFile = pendingReplyImage?.file || null;
+  replyDraftTexts.set(messageId, replyInput.value);
 
   if (!replyText && !imageFile) {
     replyInput.focus();
     return;
   }
 
+  if (submittingReplyIds.has(messageId)) {
+    return;
+  }
+
+  if (pendingReplyImage?.error) {
+    window.alert(pendingReplyImage.error);
+    return;
+  }
+
+  submittingReplyIds.add(messageId);
+
+  const submitButton = form.querySelector(".reply-submit-btn");
+  if (submitButton instanceof HTMLButtonElement) {
+    submitButton.disabled = true;
+    submitButton.textContent = "发布中...";
+  }
+
   try {
     let uploadedImage = null;
 
     if (imageFile) {
-      const maxSize = 3 * 1024 * 1024;
-      if (imageFile.size > maxSize) {
-        window.alert("回复图片不能超过 3MB。");
-        return;
-      }
-
       uploadedImage = await uploadImageToServer(imageFile);
     }
 
@@ -1202,10 +1384,17 @@ messageListEl.addEventListener("submit", async (event) => {
       })
     );
 
-    activeReplyMessageId = Number(messageIdRaw);
+    resetReplyDraft(messageId);
+    activeReplyMessageId = messageId;
     await fetchMessagesFromServer();
   } catch (error) {
     window.alert(error.message || "回复发布失败，请稍后重试。");
+  } finally {
+    submittingReplyIds.delete(messageId);
+    if (submitButton instanceof HTMLButtonElement && document.body.contains(submitButton)) {
+      submitButton.disabled = false;
+      submitButton.textContent = "发布回复";
+    }
   }
 });
 
