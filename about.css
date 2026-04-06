@@ -1,0 +1,318 @@
+/* 全局重置与基础设置 */
+body.wiki-lemma {
+    font-family: arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #333;
+    background-color: #fff;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+}
+
+a { color: #136ec2; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* 头部导航 (严格还原尺寸与阴影) */
+.header-wrapper {
+    width: 100%;
+    height: 60px;
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    position: fixed;
+    top:0; left: 0;
+    z-index: 100;
+}
+
+.header-content {
+    width: 1200px;
+    height: 100%;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    margin-right: 50px;
+}
+
+.logo img {
+    height: 32px;
+    display: block;
+}
+
+.search-box {
+    display: flex;
+    border: 1px solid #c4c7ce;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.search-box:hover, .search-box:focus-within {
+    border-color: #4e6ef2;
+}
+
+.search-input {
+    width: 450px;
+    height: 36px;
+    padding: 0 15px;
+    border: none;
+    outline: none;
+    font-size: 15px;
+}
+
+.search-btn {
+    width: 100px;
+    height: 38px;
+    background-color: #4e6ef2;
+    color: #fff;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.search-btn:hover { background-color: #4662d9; }
+
+.user-tools { margin-left: auto; font-size: 14px; }
+.user-tools a { color: #333; margin-left: 20px; }
+
+/* 主体内容网格布局 */
+.body-wrapper {
+    width: 100%;
+    margin-top: 85px;
+}
+
+.content-wrapper {
+    width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+/* 左侧内容区 */
+.main-content {
+    width: 850px;
+}
+
+/* 标题区 */
+.top-tool {
+    position: relative;
+    margin-bottom: 25px;
+    display: flex;
+    align-items: flex-end;
+}
+
+.lemmaWgt-lemmaTitle-title {
+    font-size: 34px;
+    font-weight: 400;
+    line-height: 40px;
+    margin: 0;
+    color: #000;
+}
+
+.lemma-desc {
+    font-size: 20px;
+    color: #000;
+    margin-left: 5px;
+    font-weight: 400;
+}
+
+.edit-lemma {
+    margin-left: 20px;
+    font-size: 14px;
+    color: #999;
+    cursor: pointer;
+}
+
+/* 摘要区 */
+.lemma-summary {
+    margin-bottom: 30px;
+}
+
+.para {
+    font-size: 14px;
+    line-height: 24px;
+    margin-bottom: 15px;
+    text-indent: 2em;
+    color: #333;
+    word-wrap: break-word;
+}
+
+/* 基本信息表格 (1:1 高度仿真) */
+.basic-info {
+    width: 100%;
+    margin-bottom: 40px;
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px dotted #ccc;
+    border-bottom: 1px dotted #ccc;
+    padding: 15px 0;
+}
+
+.basicInfo-block {
+    width: 48%;
+    margin: 0;
+}
+
+.basicInfo-item {
+    line-height: 26px;
+    display: inline-block;
+    vertical-align: top;
+    margin: 0;
+}
+
+.basicInfo-item.name {
+    width: 90px;
+    padding: 0 5px 0 12px;
+    font-weight: 700;
+    color: #999;
+}
+
+.basicInfo-item.value {
+    width: 290px;
+    color: #333;
+    position: relative;
+}
+
+/* 目录 (完美复刻灰框多列) */
+.lemmaWgt-lemmaCatalog {
+    width: 400px;
+    border: 1px solid #e6e6e6;
+    border-radius: 4px;
+    background-color: #fafafa;
+    margin-bottom: 30px;
+    overflow: hidden;
+}
+
+.catalog-title {
+    height: 40px;
+    line-height: 40px;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    border-bottom: 1px solid #e6e6e6;
+}
+
+.catalog-list { padding: 15px 20px; }
+.catalog-list ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; }
+.catalog-list li { width: 50%; line-height: 24px; font-size: 14px; }
+.catalog-list .level2 { padding-left: 15px; font-size: 12px; color: #666; }
+
+/* 标题体系 */
+.para-title.level-1 {
+    clear: both;
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 28px;
+    margin: 40px 0 15px;
+    padding: 5px 0 5px 12px;
+    border-left: 5px solid #4f9cee;
+    border-bottom: 1px solid #eee;
+}
+
+.para-title.level-2 {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 24px;
+    margin: 25px 0 12px;
+}
+
+.anchor-list { position: relative; }
+.lemma-anchor { position: absolute; top: -70px; } /* 处理顶部导航遮挡 */
+
+/* 右侧侧边栏 */
+.side-content {
+    width: 270px;
+}
+
+/* 词条图片 */
+.summary-pic {
+    width: 270px;
+    text-align: center;
+    margin-bottom: 25px;
+    background: #fcfcfc;
+    border: 1px solid #e0e0e0;
+    padding-bottom: 10px;
+    border-radius: 2px;
+}
+
+.summary-pic img {
+    width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+    background: #000; /* 防止透明或过窄图片露白 */
+    display: block;
+}
+
+.pic-desc {
+    display: block;
+    margin-top: 10px;
+    font-size: 14px;
+    color: #555;
+}
+
+/* 侧边关系模块 (模仿百科人物关系网) */
+.side-module {
+    border: 1px solid #e0e0e0;
+    border-radius: 2px;
+    margin-bottom: 20px;
+}
+
+.module-title {
+    background-color: #fcfcfc;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 0 15px;
+    height: 40px;
+    line-height: 40px;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.relation-box { padding: 15px; display: flex; justify-content: space-around; flex-wrap: wrap; }
+.relation-item { text-align: center; cursor: pointer; flex: 0 1 calc(33.333% - 10px); margin-bottom: 15px; text-decoration: none; }
+.relation-link { text-decoration: none; display: block; color: inherit; }
+.avatar-circle { width: 50px; height: 50px; border-radius: 50%; margin: 0 auto 5px; font-family: sans-serif; background-size: cover; background-position: center; background-repeat: no-repeat; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
+.relation-item .name { font-size: 14px; color: #136ec2; }
+.relation-link:hover .name { text-decoration: underline; }
+.relation-item .desc { font-size: 12px; color: #999; }
+
+/* 图库容器 */
+.gallery-container {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 30px;
+    margin-top: 15px;
+}
+
+.gallery-item {
+    flex: 0 1 calc(50% - 10px);
+    background: #fcfcfc;
+    border: 1px solid #e0e0e0;
+    border-radius: 2px;
+    overflow: hidden;
+    text-align: center;
+}
+
+.gallery-item img {
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    object-fit: cover;
+    display: block;
+}
+
+.gallery-desc {
+    padding: 10px;
+    font-size: 13px;
+    color: #555;
+    background-color: #fafafa;
+    border-top: 1px solid #e0e0e0;
+}
+
+.colleagues-box {
+    flex-wrap: wrap;
+}
